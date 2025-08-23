@@ -1,42 +1,42 @@
-// server.js
-const express = require("express");
-const multer = require("multer");
-const fetch = require("node-fetch");
-const path = require("path");
+const fs = require('fs');
+const express = require('express');
+const multer = require('multer');
+const { google } = require('googleapis');
 
 const app = express();
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ dest: 'uploads/' });
 
-const PORT = process.env.PORT || 3000;
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY; // Set this in Render
+// Load OAuth2 credentials
+const credentials = JSON.parse(fs.readFileSync('client_secret.json'));
+const { client_id, client_secret, redirect_uris } = credentials.installed;
 
-// Serve frontend
-app.use(express.static(path.join(__dirname, "frontend")));
+const oAuth2Client = new google.auth.OAuth2(
+  client_id,
+  client_secret,
+  redirect_uris[0]
+);
 
-// Upload & check copyright by title
-app.post("/upload-check", upload.single("file"), async (req, res) => {
-  try {
-    const fileName = req.file.originalname; // using filename as query
-
-    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(fileName)}&key=${YOUTUBE_API_KEY}`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.items && data.items.length > 0) {
-      res.json({
-        status: "Possible copyright match found",
-        matches: data.items.map(item => ({
-          title: item.snippet.title,
-          channel: item.snippet.channelTitle,
-          link: `https://www.youtube.com/watch?v=${item.id.videoId}`
-        }))
-      });
-    } else {
-      res.json({ status: "No match found, likely original content" });
-    }
-  } catch (error) {
-    res.status(500).json({ error: "Upload check failed" });
-  }
+// Step 1: Generate Auth URL
+app.get('/auth', (req, res) => {
+  const authUrl = oAuth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: ['https://www.googleapis.com/auth/youtube.readonly']
+  });
+  res.send(`<a href="${authUrl}">Authorize App</a>`);
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Step 2: Handle OAuth2 callback
+app.get('/oauth2callback', async (req, res) => {
+  const code = req.query.code;
+  const { tokens } = await oAuth2Client.getToken(code);
+  oAuth2Client.setCredentials(tokens);
+  fs.writeFileSync('token.json', JSON.stringify(tokens));
+  res.send('Authorization successful! You can now upload and check videos.');
+});
+
+// Step 3: Endpoint to upload a video and check (future integration)
+app.post('/upload', upload.single('file'), async (req, res) => {
+  res.send('Video uploaded! Copyright checking feature coming next.');
+});
+
+app.listen(3000, () => console.log('Server running on port 3000'));
