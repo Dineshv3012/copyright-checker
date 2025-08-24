@@ -22,21 +22,31 @@ app.get('/auth', (req, res) => {
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/youtube.readonly']
   });
-  res.send(`<a href="${authUrl}">Authorize App</a>`);
+  res.send(`<h1>YouTube Copyright Checker</h1>
+            <p><a href="${authUrl}">Authorize with Google</a></p>`);
 });
 
 // Step 2: Handle OAuth2 callback
 app.get('/oauth2callback', async (req, res) => {
   const code = req.query.code;
-  const { tokens } = await oAuth2Client.getToken(code);
-  oAuth2Client.setCredentials(tokens);
-  fs.writeFileSync('token.json', JSON.stringify(tokens));
-  res.send('Authorization successful! You can now upload and check videos.');
+  if (!code) return res.status(400).send('No code received from Google');
+
+  try {
+    const { tokens } = await oAuth2Client.getToken(code);
+    oAuth2Client.setCredentials(tokens);
+    fs.writeFileSync('token.json', JSON.stringify(tokens));
+    res.send('<h2>Authorization successful!</h2><p>You can now upload and check videos.</p>');
+  } catch (error) {
+    res.status(500).send('Error during OAuth: ' + error.message);
+  }
 });
 
-// Step 3: Endpoint to upload a video (future copyright check)
-app.post('/upload', upload.single('file'), async (req, res) => {
-  res.send('Video uploaded! Copyright checking feature coming next.');
+// Step 3: Endpoint to upload a video (placeholder for copyright check)
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).send('No file uploaded');
+  }
+  res.send(`Video "${req.file.originalname}" uploaded successfully! Copyright checking feature coming soon.`);
 });
 
 app.listen(3000, () => console.log('Server running on port 3000'));
