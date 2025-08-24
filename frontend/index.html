@@ -19,25 +19,19 @@
 <body>
   <div class="card">
     <h1>Copyright Checker</h1>
-    <p class="muted">Authorize once, upload your file (video/audio). We upload it to YouTube as <b>private</b> so YouTube can run Content ID. Then check status.</p>
+    <p class="muted">Authorize once, upload your file (video/audio). We upload it to YouTube as <b>private</b> so YouTube can run Content ID and return status automatically.</p>
 
     <div class="row" style="margin-bottom:12px;">
-      <a class="btn" href="/auth">Authorize with YouTube</a>
+      <a class="btn" href="/authorize">Authorize with YouTube</a>
       <span class="hint">If you haven’t authorized yet, click this first.</span>
     </div>
 
     <form id="f" class="row">
-      <input type="file" name="file" id="file" accept="video/*,audio/*" required />
-      <button type="submit">Upload & Start Check</button>
+      <input type="file" name="video" id="file" accept="video/*,audio/*" required />
+      <button type="submit">Upload & Check Copyright</button>
     </form>
 
     <div id="out" style="margin-top:16px;"></div>
-
-    <div style="margin-top:18px;">
-      <input id="vid" placeholder="Paste Video ID to check status…" style="width:60%; padding:10px; border-radius:8px; border:1px solid #333; background:#000; color:#eee;" />
-      <button id="checkBtn">Check Status</button>
-    </div>
-
     <pre id="log"></pre>
   </div>
 
@@ -47,23 +41,16 @@
 
     document.getElementById('f').addEventListener('submit', async (e) => {
       e.preventDefault();
-      log('Uploading…');
+      log('Uploading and checking…');
       const fd = new FormData(e.target);
-      const r = await fetch('/upload', { method: 'POST', body: fd });
+      const r = await fetch('/upload-check', { method: 'POST', body: fd });
       const j = await r.json().catch(() => ({}));
-      document.getElementById('out').innerHTML = j.videoId
-        ? `Uploaded. Video ID: <b>${j.videoId}</b> (copy it below to check)`
-        : '';
-      log(j);
-      document.getElementById('vid').value = j.videoId || '';
-    });
-
-    document.getElementById('checkBtn').addEventListener('click', async () => {
-      const id = document.getElementById('vid').value.trim();
-      if (!id) return log('Enter a video ID first.');
-      log('Checking status…');
-      const r = await fetch('/status/' + encodeURIComponent(id));
-      const j = await r.json().catch(() => ({}));
+      
+      if (j.videoId) {
+        document.getElementById('out').innerHTML = `Uploaded. Video ID: <b>${j.videoId}</b><br>Content ID Matches: <b>${j.contentIdMatches.length}</b>`;
+      } else {
+        document.getElementById('out').innerHTML = 'Upload failed.';
+      }
       log(j);
     });
   </script>
