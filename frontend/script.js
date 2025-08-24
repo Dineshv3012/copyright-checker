@@ -1,72 +1,56 @@
 const resultEl = document.getElementById("result");
-const queryEl = document.getElementById("query");
-const btn = document.getElementById("checkBtn");
+const fileInput = document.getElementById("file");
+const uploadBtn = document.getElementById("uploadBtn");
 
-function renderItems(items) {
-  if (!items || items.length === 0) {
-    resultEl.innerHTML = `<div class="empty">No matching videos found.</div>`;
+// Render Content ID matches
+function renderMatches(matches) {
+  if (!matches || matches.length === 0) {
+    resultEl.innerHTML = `<div class="empty">No copyright matches found.</div>`;
     return;
   }
-  const html = items.map(item => {
-    const vid = item.id?.videoId || item.id;
-    const snip = item.snippet || {};
-    const title = snip.title || "(no title)";
-    const channel = snip.channelTitle || "Unknown channel";
-    const published = snip.publishedAt ? new Date(snip.publishedAt).toDateString() : "";
-    const thumb = snip.thumbnails?.medium?.url || snip.thumbnails?.default?.url || "";
-    const url = `https://www.youtube.com/watch?v=${vid}`;
+
+  const html = matches.map(match => {
+    const owner = match.owner || "Unknown";
+    const action = match.action || "Unknown action";
+    const type = match.type || "Unknown type";
     return `
       <div class="result-item">
-        <img class="thumb" src="${thumb}" alt="thumbnail">
-        <div class="meta">
-          <h3>${title}</h3>
-          <p>${channel}${published ? " • " + published : ""}</p>
-          <a class="btn" href="${url}" target="_blank" rel="noopener">Open on YouTube</a>
-        </div>
+        <h3>Owner: ${owner}</h3>
+        <p>Type: ${type} • Action: ${action}</p>
       </div>
     `;
   }).join("");
   resultEl.innerHTML = html;
 }
 
-async function doCheck() {
-  const q = queryEl.value.trim();
-  if (!q) return alert("Please enter a title or URL");
-  resultEl.innerHTML = `<div class="empty">Checking…</div>`;
+// Handle file upload & automatic copyright check
+async function doUploadCheck() {
+  if (fileInput.files.length === 0) return alert("Select a file first!");
+  resultEl.innerHTML = `<div class="empty">Uploading and checking…</div>`;
+
+  const fd = new FormData();
+  fd.append("video", fileInput.files[0]);
 
   try {
-    const r = await fetch("/check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: q })
-    });
-    const data = await r.json();
+    const res = await fetch("/upload-check", { method: "POST", body: fd });
+    const data = await res.json();
+
     if (data.error) {
       resultEl.innerHTML = `<div class="error">${data.error}</div>`;
       return;
     }
-    if (data.mode === "videoId") {
-      // items = videos.list format (array with full video object)
-      const items = (data.items || []).map(v => ({
-        id: v.id,
-        snippet: v.snippet
-      }));
-      if (data.exists) {
-        renderItems(items);
-      } else {
-        resultEl.innerHTML = `<div class="empty">That exact video was not found.</div>`;
-      }
-    } else {
-      // search results
-      renderItems(data.items || []);
-    }
+
+    const videoId = data.videoId || "(unknown)";
+    const matches = data.contentIdMatches || [];
+    resultEl.innerHTML = `<div><b>Video ID:</b> ${videoId}</div>`;
+    renderMatches(matches);
   } catch (e) {
     console.error(e);
     resultEl.innerHTML = `<div class="error">Something went wrong. Please try again.</div>`;
   }
 }
 
-btn.addEventListener("click", doCheck);
-queryEl.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") doCheck();
+uploadBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  doUploadCheck();
 });
